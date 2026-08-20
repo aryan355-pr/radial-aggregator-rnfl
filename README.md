@@ -3,7 +3,7 @@
 [![Conference](https://img.shields.io/badge/MICCAI%20OMIA%202026-Oral%20Paper-blue.svg)](https://github.com/aryan355-pr/radial-aggregator-rnfl)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-brightgreen.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-orange.svg)](https://pytorch.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 
 **TL;DR:** Standard classification-centric adaptation protocols (progressive layer freezing, shape-preserving Pearson losses) paradoxically degrade continuous dense metric regression by **18–32%** on en face IR-SLO fundus imaging. We identify two distinct failure modes: a saturating freezing threshold that collapses predictive variance and template overfitting under correlation penalties. Applying a first-order gradient penalty probe restores patient-specific prediction variance ($\sigma_{\text{pred}} \approx 11.8\,\mu\text{m}$) without compromising global accuracy ($19.04 \pm 0.03\,\mu\text{m}$).
 
