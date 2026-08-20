@@ -106,12 +106,16 @@ Continuous 360° RNFL Thickness Profile T ∈ ℝ³⁶⁰
 ```
 
 ### Diagnostic Objectives
-1. **Unconstrained Base Loss:**
-   $$\mathcal{L}_{\text{MAE}} = \frac{1}{360} \sum_{\theta=1}^{360} |T_{\text{pred}}(\theta) - T_{\text{gt}}(\theta)|$$
-2. **First-Order Gradient-Preservation Probe:**
-   $$\mathcal{L}_{\text{Grad}} = \|T_{\text{pred}} - T_{\text{gt}}\|_1 + \lambda_g \|\nabla_\theta T_{\text{pred}} - \nabla_\theta T_{\text{gt}}\|_1$$
-   *where $\nabla_\theta T(\theta) = T(\theta) - T(\theta - 1)$ is evaluated circularly ($\theta = 0$ wraps to $359$) with $\lambda_g = 0.5$.*
 
+1. **Unconstrained Base Loss:**
+
+$$\mathcal{L}_{\text{MAE}} = \frac{1}{360} \sum_{\theta=1}^{360} |T_{\text{pred}}(\theta) - T_{\text{gt}}(\theta)|$$
+
+2. **First-Order Gradient-Preservation Probe:**
+
+$$\mathcal{L}_{\text{Grad}} = \|T_{\text{pred}} - T_{\text{gt}}\|_1 + \lambda_g \|\nabla_\theta T_{\text{pred}} - \nabla_\theta T_{\text{gt}}\|_1$$
+
+where $\nabla_\theta T(\theta) = T(\theta) - T(\theta - 1)$ is evaluated circularly ($\theta = 0$ wraps to $359$).
 ---
 
 ## 📦 Datasets & Setup
