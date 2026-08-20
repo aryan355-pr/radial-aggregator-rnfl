@@ -1,25 +1,30 @@
-# Rethinking Foundation Model Adaptation for Dense Regression in Medical Imaging
+# Diagnosing Adaptation Failure Modes in Foundation Models for RNFL Thickness Prediction
 
-### [Anonymous MICCAI 2026 Submission #4917]
+[![Conference](https://img.shields.io/badge/MICCAI%20OMIA%202026-Oral%20Paper-blue.svg)](https://github.com/aryan355-pr/radial-aggregator-rnfl)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-brightgreen.svg)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-orange.svg)](https://pytorch.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**TL;DR:** We show that standard foundation model adaptation protocols (freezing layers, shape-preserving losses) degrade performance by 24-27% for dense medical regression. Our gradient-preserving loss achieves 19.04 μm MAE, outperforming structured protocols by 27%.
+**TL;DR:** Standard classification-centric adaptation protocols (progressive layer freezing, shape-preserving Pearson losses) paradoxically degrade continuous dense metric regression by **18–32%** on en face IR-SLO fundus imaging. We identify two distinct failure modes: a saturating freezing threshold that collapses predictive variance and template overfitting under correlation penalties. Applying a first-order gradient penalty probe restores patient-specific prediction variance ($\sigma_{\text{pred}} \approx 11.8\,\mu\text{m}$) without compromising global accuracy ($19.04 \pm 0.03\,\mu\text{m}$).
 
 ---
 
-## 🎯 Quick Start (5 minutes)
+## 🎯 Quick Start
 
 ### 1. Install Dependencies
 ```bash
+git clone [https://github.com/aryan355-pr/radial-aggregator-rnfl.git](https://github.com/aryan355-pr/radial-aggregator-rnfl.git)
+cd radial-aggregator-rnfl
 pip install -r requirements.txt
 ```
 
-### 2. Download Pre-trained Model
+### 2. Download Pre-trained Checkpoints
 ```bash
-# Our best model (Gradient-Loss, 19.04 μm MAE)
-wget [ANONYMIZED_LINK]/gradient_loss_best.pth -P checkpoints/
+# Download best diagnostic checkpoint (Gradient-Loss probe)
+wget [CHECKPOINT_LINK]/gradient_loss_best.pth -P checkpoints/
 ```
 
-### 3. Run Inference on GRAPE
+### 3. Run Inference on GRAPE (Cross-Modality Benchmark)
 ```bash
 python scripts/evaluate.py \
     --config configs/gradient_loss.yaml \
@@ -27,206 +32,162 @@ python scripts/evaluate.py \
     --data_path ./data/GRAPE \
     --output results/grape_predictions.csv
 ```
-**Expected output:** MAE ≈ 19.88 μm, σ(pred) ≈ 22.60 μm
+**Expected Output:** Global MAE $\approx 19.88\,\mu\text{m}$, $\sigma_{\text{pred}} \approx 12.15\,\mu\text{m}$ (Preserved anatomical variance).
 
 ---
 
-## 📊 Main Results (from Paper)
+## 📊 Main Results
 
-### Table 1: Multi-Backbone Performance and Metric Collapse Analysis
-| Backbone | Pre-train | Protocol | MAE ($\mu m$) ↓ | Pearson R ↑ | Fairness Gap ↓ | $\Delta$ vs. Naive ↓ | $\sigma_{pred}$ ($\mu m$) |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **ImageNet (ViT-B/16)** | Classification | Naive | 19.79 | 0.661 | 1.60 | - | 12.4 |
-| | | Aggressive | 19.92 | 0.661 | 1.72 | +0.7% | 12.2 |
-| | | Structured | 24.68 | 0.649 | 1.85 | +24.7% | 10.8 |
-| **DepthAny (V2-Small)** | Depth (Metric) | Naive | 19.93 | 0.661 | 1.64 | - | 12.5 |
-| | | Aggressive | 19.88 | 0.662 | 1.70 | +0.3% | 12.3 |
-| | | Structured | 24.75 | 0.645 | 1.82 | +24.2% | 10.6 |
-| **RETFound (ViT-L/16)** | MAE Semantic | Naive | 19.52 | 0.662 | 1.68 | - | 12.3 |
-| | | Aggressive | 19.25 | 0.676 | 1.79 | -1.4% | 12.3 |
-| | | **Gradient-Loss (Ours)** | **19.04\***| **0.676** | 2.40 | **-2.5%** | **11.8** |
-| | | Structured | 24.80 | 0.458 | **1.57\***| +27.0% | 4.8 |
+### Table 1: Multi-Backbone Performance and Metric Dissociation (FairFedMed IID Split)
 
-<br>
+| Backbone | Pre-training Objective | Protocol | MAE (μm) ↓ | Pearson R ↑ | $\sigma_{\text{pred}}$ (μm) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| ImageNet (ViT-B/16) | Supervised Classification | Naive | 19.79 | 0.661 | 12.4 |
+| | | Aggressive | 19.92 | 0.661 | 12.2 |
+| | | Structured | 24.68 | 0.649 | 10.8 |
+| DepthAnything (V2-Small) | Relative/Metric Depth | Naive | 19.93 | 0.661 | 12.5 |
+| | | Aggressive | 19.88 | 0.662 | 12.3 |
+| | | Structured | 24.75 | 0.645 | 10.6 |
+| RETFound (ViT-L/16) | Self-Supervised Retinal MAE | Naive | 19.52 | 0.662 | 12.3 |
+| | | Aggressive | 19.25 | 0.676 | 12.3 |
+| | | **Gradient-Loss (Probe)** | **19.04 ± 0.03** | **0.676** | **11.8 ± 0.2** |
+| | | Structured | 23.71 | 0.513 | 4.8 (Collapse) |
 
-### Table 2: Sector-wise RNFL Regression Results on GRAPE Dataset (Cross-Modality)
-| Protocol | Global MAE ↓ | Sup. MAE ↓ | Nas. MAE ↓ | Inf. MAE ↓ | Temp. MAE ↑ | $\sigma_{pred}$ |
+*Ground-truth target population standard deviation: $\sigma_{\text{true}} = 18.6\,\mu\text{m}$.*
+
+### Table 2: Impact of Progressive Layer Freezing (RETFound ViT-L/16, MAE-Only)
+
+| Configuration | Frozen Fraction | MAE (Δ, μm) | Pearson R | $\sigma_{\text{pred}}$ (μm) | Failure Diagnosis |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Aggressive (Ref.) | 0% | 19.25 (—) | 0.676 | 12.3 | Optimal Adaptation |
+| freeze_4 | 17% | 23.07 (+20%) | 0.523 | 12.0 | Representation Jump |
+| freeze_8 | 33% | 23.57 (+22%) | 0.512 | 11.7 | Plateau Saturation |
+| freeze_12 | 50% | 23.71 (+23%) | 0.513 | 4.8 | Variance Collapse |
+
+*Note: Progressive layer freezing exhibits an immediate non-linear representation penalty (+3.82 $\mu\text{m}$ at 17% frozen) rather than a linear trajectory, concluding in catastrophic expressive variance collapse at 50% freezing.*
+
+### Table 3: Dissociation of Metrics Under Shape-Preserving Losses (Pearson Penalty $\lambda_p$)
+
+| Configuration | $\lambda_p$ | MAE (Δ, μm) | Pearson R | $\sigma_{\text{pred}}$ (μm) | Diagnosis |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| MAE-only (Ref.) | 0 | 19.76 (—) | 0.661 | 12.3 | Target Baseline |
+| MAE + P(0.5) | 0.5 | 24.80 (+25%) | 0.458 | 8.1 | Initial Collapse |
+| MAE + P(10) | 10 | 25.22 (+28%) | 0.649 | 6.4 | Shape Overfitting |
+| MAE + P(30) | 30 | 25.81 (+31%) | 0.661 | 4.8 | Template Overfitting Trap |
+
+### Table 4: Sector-Wise Cross-Modality Validation on GRAPE Dataset
+
+| Protocol | Global MAE ↓ | Superior ↓ | Nasal ↓ | Inferior ↓ | Temporal ↓ | $\sigma_{\text{pred}}$ (μm) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **RETFound (MAE Only)** | 20.12 | 20.45 | 18.90 | 22.34 | 18.79 | 0.82 (Collapsed) |
-| **Ours (Grad + MAE)** | **19.88** | **19.61** | **18.56** | **22.12** | **19.25** | **12.15 (Preserved)** |
-
-**Key Finding:** Structured protocols cause "template overfitting" (σ=4.8 μm), while our gradient loss preserves anatomical diversity (σ=11.8 μm).
-
-### Table 2: Ablation Study
-| Configuration | Frozen (%) | MAE (μm) | σ(pred) (μm) |
-| :--- | :--- | :--- | :--- |
-| Aggressive | 0% | 19.25 | 12.3 |
-| freeze_4 | 17% | 23.07 | 12.0 |
-| freeze_8 | 33% | 23.57 | 11.7 |
-| freeze_12 | 50% | 24.80 | 11.4 |
-
-**Linear penalty:** $MAE$ = 19.25 + 3.6 x (%frozen/10), $R^2=0.98$
+| Structured (MAE-Only) | 20.12 | 20.45 | 18.90 | 22.34 | 18.79 | 0.82 (Collapsed) |
+| **Gradient-Loss (Probe)** | **19.88** | **19.61** | **18.56** | **22.12** | **19.25** | **12.15 (Preserved)** |
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Method Pipeline
+
 ```text
-Input SLO Image (224×224) 
-    ↓
-RETFound Backbone (ViT-L/16)
-    ↓
-Projection Head (3-layer MLP → 56×56 spatial map)
-    ↓
-Radial Aggregator (360° circular sampling)
-    ↓
-RNFL Head (MLP: 360 → 512 → 360)
-    ↓
-RNFL Thickness Profile (360 points)
+Input IR-SLO Image (224×224) 
+         │
+         ▼
+Vision Transformer Encoder (RETFound ViT-L/16)
+         │ [Extracts 196 × 1024 patch tokens]
+         ▼
+Projection & Upsampling Head (3-layer MLP → 56×56 Depth Map)
+         │
+         ▼
+Radial Aggregator (Differentiable Circular Sampling @ 30% disc radius)
+         │ [Extracts 360 angular coordinate features]
+         ▼
+RNFL Prediction Head (MLP with LayerNorm & Dropout)
+         │
+         ▼
+Continuous 360° RNFL Thickness Profile T ∈ ℝ³⁶⁰
 ```
-**Key Innovation:** Radial Aggregator enforces geometric prior for retinal structure.
+
+### Diagnostic Objectives
+1. **Unconstrained Base Loss:**
+   $$\mathcal{L}_{\text{MAE}} = \frac{1}{360} \sum_{\theta=1}^{360} |T_{\text{pred}}(\theta) - T_{\text{gt}}(\theta)|$$
+2. **First-Order Gradient-Preservation Probe:**
+   $$\mathcal{L}_{\text{Grad}} = \|T_{\text{pred}} - T_{\text{gt}}\|_1 + \lambda_g \|\nabla_\theta T_{\text{pred}} - \nabla_\theta T_{\text{gt}}\|_1$$
+   *where $\nabla_\theta T(\theta) = T(\theta) - T(\theta - 1)$ is evaluated circularly ($\theta = 0$ wraps to $359$) with $\lambda_g = 0.5$.*
 
 ---
 
-## 🔧 Reproducing Paper Results
+## 📦 Datasets & Setup
 
-**Option 1: One-Click Reproduction (Recommended)**
+Due to Data Use Agreements (DUAs) and privacy compliance, users must acquire the source datasets directly:
+
+1. **FairFedMed (Primary Benchmark):**
+   * 11,539 curated en face IR-SLO images with matched 360-point OCT-derived ground-truth profiles (70/15/15 split).
+   * Access via the official [FairFedMed Repository](https://github.com/Harvard-AI-and-Robotics-Lab/FairFedMed).
+2. **GRAPE (Cross-Modality Benchmark):**
+   * 243 eyes evaluated for out-of-distribution robustness across sector profiles.
+   * Access via the official [GRAPE Figshare Collection](https://springernature.figshare.com/collections/GRAPE_A_multimodal_glaucoma_dataset_of_follow-up_visual_field_and_fundus_images_for_glaucoma_management/6406319/1).
+
 ```bash
-bash scripts/reproduce_paper.sh
+# 1. Preprocess FairFedMed (Applies Lanczos-4 anti-aliasing interpolation)
+python scripts/prepare_fairfedmed.py \
+    --input_dir /path/to/downloaded/fairfedmed \
+    --output_dir ./data/FairFedMed
+
+# 2. Preprocess GRAPE (Standardizes polar quadrant alignment)
+python scripts/prepare_grape.py \
+    --input_dir /path/to/downloaded/grape \
+    --output_dir ./data/GRAPE
 ```
-This will:
-* Train baseline models (Naive, Aggressive, Structured)
-* Train our Gradient-Loss model
-* Run ablation studies (freezing, loss complexity)
-* Generate all tables and figures
-* Save results to `results/`
-*(Time: ~10 hours on A100 GPU)*
 
-**Option 2: Individual Experiments**
+---
+
+## 🔬 Reproducing Paper Experiments
+
 ```bash
-# Train Gradient-Loss Model
+# Run complete multi-backbone evaluation suite
+bash scripts/reproduce_paper.sh
+
+# Train single model configuration (e.g., Gradient-Loss Probe)
 python scripts/train.py \
     --config configs/gradient_loss.yaml \
     --data_path ./data/FairFedMed \
     --output_dir checkpoints/gradient_loss
 
-# Evaluate on Test Set
-python scripts/evaluate.py \
-    --config configs/gradient_loss.yaml \
-    --checkpoint checkpoints/gradient_loss_best.pth \
-    --data_path ./data/FairFedMed \
-    --split test
-
-# Run Ablation Studies
+# Run progressive freezing ablation (Table 2)
 python scripts/ablation.py \
     --study freezing \
     --data_path ./data/FairFedMed
-```
 
-## 📦 Datasets
-
-Due to medical data licensing and Data Use Agreements (DUAs), both datasets must be manually downloaded before running the evaluation pipeline. We do not own or distribute these datasets. 
-
-* **FairFedMed (Primary):** 11,539 images (70/15/15 train/val/test split). Demographics labels included. Format: 224×224 fundus images + 360-point RNFL profiles.
-  * **Access:** Download the raw `.tar` archive and the master split `.csv` from the [FairFedMed GitHub Repository](https://github.com/Harvard-AI-and-Robotics-Lab/FairFedMed).
-  * **Attribution:** Introduced by Li et al. (2025) in *"FairFedMed: Benchmarking Group Fairness in Federated Medical Imaging with FairLoRA"* (IEEE TMI).
-
-* **GRAPE (Cross-Modality Validation):** 243 eyes. Modality: CFP vs SLO. Purpose: Test cross-modality robustness.
-  * **Access:** Request access and download the raw dataset archive from the [GRAPE Dataset Figshare](https://springernature.figshare.com/collections/GRAPE_A_multimodal_glaucoma_dataset_of_follow-up_visual_field_and_fundus_images_for_glaucoma_management/6406319/1).
-  * **Attribution:** Introduced by Huang et al. (2023) in *"GRAPE: A multi-modal dataset of longitudinal follow-up visual field and fundus images for glaucoma management"* (Scientific Data).
-
-**Data Setup & Preprocessing:**
-Once you have downloaded the raw datasets and agreed to their respective DUAs, place them in your local directory and run our preprocessing scripts to align them with our dataloader's expected geometric format:
-
-```bash
-# 1. Prepare FairFedMed (Verifies CSV and aligns TAR structure)
-python scripts/prepare_fairfedmed.py \
-    --input_dir /path/to/your/downloaded/fairfedmed \
-    --output_dir ./data/FairFedMed
-
-# 2. Prepare GRAPE (Extracts images and aligns SNIT sector targets)
-python scripts/prepare_grape.py \
-    --input_dir /path/to/your/downloaded/grape \
-    --output_dir ./data/GRAPE
-```
-*Purpose:* Circularly samples spatial features at 30% radius from optic disc center.
-
-### 2. Gradient-Preserving Loss
-```python
-from losses import GradientLoss
-loss_fn = GradientLoss(lambda_gradient=0.2)
-loss = loss_fn(predictions, targets)
-```
-*Formula:* L = \|T_{pred} - T_{gt}\|_1 + \lambda_g \|\nabla T_{pred} - \nabla T_{gt}\|_1
-*Effect:* Preserves anatomical transitions while avoiding template overfitting.
-
-### 3. Variance Metrics
-```python
-import numpy as np
-# Compute prediction variance
-sigma_pred = np.std(predictions)  # Should be ~11-12 μm (healthy)
-
-# Template overfitting check
-if sigma_pred < 6:
-    print("⚠️ Template overfitting detected!")
+# Run Pearson penalty complexity ablation (Table 3)
+python scripts/ablation.py \
+    --study loss_complexity \
+    --data_path ./data/FairFedMed
 ```
 
 ---
 
-## 📈 Expected Results
+## 💾 Pre-trained Checkpoints
 
-**On FairFedMed (Test Set)**
-* **Gradient-Loss Model:** MAE: 19.04 ± 0.06 μm | Pearson R: 0.676 | σ(pred): 11.8 μm | Fairness Gap: 2.40 μm
-
-**On GRAPE (Cross-Modality)**
-* **Gradient-Loss Model:** MAE: 19.88 μm | σ(pred): 22.60 μm
-* **Structured Protocol:** MAE: 34.5 μm | σ(pred): 4.8 μm (collapsed)
-
----
-
-## 🐛 Common Issues
-* **CUDA Out of Memory:** Reduce `batch_size` (e.g., to 8 or 4) and increase `gradient_accumulation_steps` in config.
-* **Dataset Path Not Found:** Ensure paths in config files use relative paths like `./data/FairFedMed/train` rather than absolute local machine paths.
-* **Checkpoint Not Loading:** Run `python scripts/convert_checkpoint.py --input old_checkpoint.pth --output new_checkpoint.pth`
+| Model Configuration | Backbone | MAE (μm) | $\sigma_{\text{pred}}$ (μm) | Download Link |
+| :--- | :--- | :--- | :--- | :--- |
+| Gradient-Loss (Probe) | RETFound ViT-L/16 | 19.04 | 11.8 | [RELEASE_LINK] |
+| Aggressive Baseline | RETFound ViT-L/16 | 19.25 | 12.3 | [RELEASE_LINK] |
+| Structured Protocol | RETFound ViT-L/16 | 23.71 | 4.8 | [RELEASE_LINK] |
 
 ---
 
-## 📊 Generating Paper Figures
+## ⚠️ Statement of Scope & Research Notice
 
-```bash
-# Figure 2: Template Overfitting Visualization
-python notebooks/01_visualize_predictions.ipynb
+* **Research Purpose Only:** This codebase and accompanying checkpoints are developed strictly for academic investigation and diagnostic benchmarking. They are not cleared or intended for clinical diagnostics or patient management.
+* **Task Boundary:** Empirical claims in this repository are specifically bounded to 1D continuous circular manifold regression of RNFL thickness from en face IR-SLO imaging[cite: 1].
 
-# Tables 1-3: Main Results
-python scripts/generate_tables.py --results_dir results/ --output paper_tables.csv
+---
+
+## 📚 Citation
+
+```bibtex
+@inproceedings{bijva2026diagnosing,
+  title={Diagnosing Adaptation Failure Modes in Foundation Models for RNFL Thickness Prediction},
+  author={Bijva, Aryan and Suthar, Krunal},
+  booktitle={Ophthalmic Medical Image Analysis (OMIA), MICCAI Workshops},
+  year={2026}
+}
 ```
-
----
-
-## 🔬 Ablation Studies
-```bash
-# Freezing Strategy
-python scripts/ablation.py --study freezing
-
-# Loss Complexity
-python scripts/ablation.py --study loss_complexity
-
-# Learning Rates
-python scripts/ablation.py --study learning_rate
-```
-
----
-
-## 💾 Pre-trained Models
-| Model | Config | MAE (μm) | Download |
-| :--- | :--- | :--- | :--- |
-| Gradient-Loss (Best) | `configs/gradient_loss.yaml` | 19.04 | `[ANONYMIZED_LINK]` |
-| Aggressive Baseline | `configs/baseline.yaml` | 19.25 | `[ANONYMIZED_LINK]` |
-| Structured Protocol | `configs/structured.yaml` | 24.80 | `[ANONYMIZED_LINK]` |
-
-
-## Critical notice
-This work is **only for research purpose**, it is **not for clinical use**.
-
-
-## 📧 Contact
-For questions or issues regarding this submission, please use the communication portal on the **MICCAI 2026 CMT Platform** to maintain author anonymity.
